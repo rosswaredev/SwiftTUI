@@ -24,9 +24,6 @@ let package = Package(
             dependencies: ["SwiftTUI"]),
         .executableTarget(
             name: "SwiftTUIExample",
-            dependencies: [
-                "SwiftTUI"
-            ]
-        )
+            dependencies: ["SwiftTUI"]),
     ]
 )

@@ -22,6 +22,7 @@ struct ExampleView: View {
         HStack {
             ObservationView().border()
             CombineView().border()
+            ExampleOnKeyPressView().border()
         }
     }
 }
@@ -89,14 +90,14 @@ struct CombineView: View {
                     vm.showCounter.toggle()
                 }
                 Button("↑") {
-                                    log("Incrementing...")
+                    log("Incrementing...")
                     vm.int += 1
-                                    log("Counter is now: \(vm.int)")
+                    log("Counter is now: \(vm.int)")
                 }
                 Button("↓") {
-                                    log("Decrementing...")
+                    log("Decrementing...")
                     vm.int -= 1
-                                    log("Counter is now: \(vm.int)")
+                    log("Counter is now: \(vm.int)")
                 }
             }
         }
