@@ -29,6 +29,8 @@ final class Node {
     /// For modifiers only, references to the controls
     var controls: WeakSet<Control>?
 
+    var _observationRestart: (() -> Void)?
+
     private(set) weak var parent: Node?
     private(set) var children: [Node] = []
 

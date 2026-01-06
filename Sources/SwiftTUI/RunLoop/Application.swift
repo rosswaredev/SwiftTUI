@@ -6,7 +6,7 @@ import AppKit
 public class Application: @unchecked Sendable {
     private let node: Node
     private let window: Window
-    private let control: Control
+    private var control: Control!
     private let renderer: Renderer
 
     private let runLoopType: RunLoopType
@@ -15,26 +15,27 @@ public class Application: @unchecked Sendable {
 
     private var invalidatedNodes: [Node] = []
     private var updateScheduled = false
+    private var observedNodes: [ObjectIdentifier: Weak<Node>] = [:]
 
     public init<I: View>(rootView: I, runLoopType: RunLoopType = .dispatch) {
         self.runLoopType = runLoopType
 
         node = Node(view: VStack(content: rootView).view)
-        node.build()
-
-        control = node.control!
-
         window = Window()
-        window.addControl(control)
-
-        window.firstResponder = control.firstSelectableElement
-        window.firstResponder?.becomeFirstResponder()
 
         renderer = Renderer(layer: window.layer)
         window.layer.renderer = renderer
 
         node.application = self
         renderer.application = self
+
+        node.build()
+        control = node.control!
+
+        window.addControl(control)
+
+        window.firstResponder = control.firstSelectableElement
+        window.firstResponder?.becomeFirstResponder()
     }
 
     var stdInSource: DispatchSourceRead?
@@ -144,6 +145,20 @@ public class Application: @unchecked Sendable {
     func invalidateNode(_ node: Node) {
         invalidatedNodes.append(node)
         scheduleUpdate()
+    }
+
+    func _registerObservedNode(_ node: Node) {
+        observedNodes[ObjectIdentifier(node)] = Weak(value: node)
+    }
+
+    func _handleObservationChange(for nodeID: ObjectIdentifier) {
+        guard let node = observedNodes[nodeID]?.value else {
+            observedNodes[nodeID] = nil
+            return
+        }
+        log("Observation observed a change. invalidating node...")
+        invalidateNode(node)
+        node._observationRestart?()
     }
 
     func scheduleUpdate() {

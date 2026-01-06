@@ -4,21 +4,32 @@ import Foundation
 @available(macOS 14.0, *)
 extension View {
     func setupObservableClassProperties(node: Node) {
-        for (_, value) in Mirror(reflecting: self).children {
-            if value is Observation.Observable {
-                startObservation(node: node)
-            }
+        let hasObservableProperty = Mirror(reflecting: self).children.contains { _, value in
+            value is Observation.Observable
         }
+        guard hasObservableProperty else { return }
+        startObservation(node: node)
     }
-    
+
     func startObservation(node: Node) {
+        guard let application = node.root.application else {
+            return
+        }
+
+        let nodeID = ObjectIdentifier(node)
+        node._observationRestart = { [weak node] in
+            guard let node else { return }
+            self.startObservation(node: node)
+        }
+        application._registerObservedNode(node)
+
         log("Starting observation")
-        withObservationTracking {
-            _ = self.body
+        _ = withObservationTracking {
+            self.body
         } onChange: {
-            log("Observation observed a change. invalidating node...")
-            node.root.application?.invalidateNode(node)
-            startObservation(node: node)
+            Task { @MainActor in
+                application._handleObservationChange(for: nodeID)
+            }
         }
     }
 }
