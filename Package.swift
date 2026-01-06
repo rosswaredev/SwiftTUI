@@ -13,7 +13,8 @@ let package = Package(
             targets: ["SwiftTUI"]),
     ],
     dependencies: [
-         .package(url: "https://github.com/apple/swift-docc-plugin", from: "1.0.0")
+        .package(url: "https://github.com/pointfreeco/swift-snapshot-testing", exact: "1.18.7"),
+        .package(url: "https://github.com/apple/swift-docc-plugin", from: "1.0.0")
     ],
     targets: [
         .target(
@@ -21,7 +22,11 @@ let package = Package(
             dependencies: []),
         .testTarget(
             name: "SwiftTUITests",
-            dependencies: ["SwiftTUI"]),
+            dependencies: [
+                "SwiftTUI",
+                .product(name: "InlineSnapshotTesting", package: "swift-snapshot-testing"),
+                .product(name: "SnapshotTesting", package: "swift-snapshot-testing"),
+            ]),
         .executableTarget(
             name: "SwiftTUIExample",
             dependencies: ["SwiftTUI"]),
