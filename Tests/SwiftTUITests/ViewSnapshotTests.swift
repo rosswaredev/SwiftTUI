@@ -48,6 +48,20 @@ final class ViewSnapshotTests: XCTestCase {
         }
     }
 
+    func test_styledSnapshot_includesForegroundAndBackgroundColors() {
+        let view = VStack {
+            Text("Hi").foregroundColor(.red)
+            Text("Hi").frame(width: 4).background(.blue)
+        }
+
+        assertInlineSnapshot(of: view, as: .swiftTUI(width: 20, height: 10, format: .styled)) {
+            """
+            ⟦fg=red⟧Hi⟦/⟧
+            ⟦bg=blue⟧Hi··⟦/⟧
+            """
+        }
+    }
+
   func test_spacer() {
       let view = VStack {
           Text("Hello")
@@ -70,4 +84,3 @@ final class ViewSnapshotTests: XCTestCase {
       }
   }
 }
-
