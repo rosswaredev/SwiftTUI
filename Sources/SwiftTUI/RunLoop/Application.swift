@@ -11,7 +11,8 @@ public class Application: @unchecked Sendable {
 
     private let runLoopType: RunLoopType
 
-    private var arrowKeyParser = ArrowKeyParser()
+    private var keyEventParser = KeyEventParser()
+    private var pendingEscapeFlush: DispatchWorkItem?
 
     private var invalidatedNodes: [Node] = []
     private var updateScheduled = false
@@ -97,47 +98,109 @@ public class Application: @unchecked Sendable {
             return
         }
 
+        // Cache the global key handler controls once for this read.
+        let onKeyEventControls = window.controls.flattenAndKeepOnlyOnKeyEventControl()
+        let onKeyPressControls = window.controls.flattenAndKeepOnlyOnKeyPressControl()
+
         for char in string {
-            if arrowKeyParser.parse(character: char) {
-                guard let key = arrowKeyParser.arrowKey else { continue }
-                arrowKeyParser.arrowKey = nil
-                if key == .down {
-                    if let next = window.firstResponder?.selectableElement(below: 0) {
-                        window.firstResponder?.resignFirstResponder()
-                        window.firstResponder = next
-                        window.firstResponder?.becomeFirstResponder()
-                    }
-                } else if key == .up {
-                    if let next = window.firstResponder?.selectableElement(above: 0) {
-                        window.firstResponder?.resignFirstResponder()
-                        window.firstResponder = next
-                        window.firstResponder?.becomeFirstResponder()
-                    }
-                } else if key == .right {
-                    if let next = window.firstResponder?.selectableElement(rightOf: 0) {
-                        window.firstResponder?.resignFirstResponder()
-                        window.firstResponder = next
-                        window.firstResponder?.becomeFirstResponder()
-                    }
-                } else if key == .left {
-                    if let next = window.firstResponder?.selectableElement(leftOf: 0) {
-                        window.firstResponder?.resignFirstResponder()
-                        window.firstResponder = next
-                        window.firstResponder?.becomeFirstResponder()
-                    }
-                }
-            } else if char == ASCII.EOT {
+            if keyEventParser.hasPendingEscape, pendingEscapeFlush != nil {
+                pendingEscapeFlush?.cancel()
+                pendingEscapeFlush = nil
+            }
+
+            let previousState = keyEventParser.state
+            let events = keyEventParser.feed(char)
+
+            if previousState == .idle, keyEventParser.hasPendingEscape {
+                scheduleEscapeFlush()
+            }
+
+            for event in events {
+                handle(
+                    event,
+                    onKeyEventControls: onKeyEventControls,
+                    onKeyPressControls: onKeyPressControls
+                )
+            }
+        }
+    }
+
+    private func scheduleEscapeFlush() {
+        pendingEscapeFlush?.cancel()
+
+        let workItem = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            let events = self.keyEventParser.flushPendingEscape()
+            let onKeyEventControls = self.window.controls.flattenAndKeepOnlyOnKeyEventControl()
+            let onKeyPressControls = self.window.controls.flattenAndKeepOnlyOnKeyPressControl()
+            for event in events {
+                self.handle(
+                    event,
+                    onKeyEventControls: onKeyEventControls,
+                    onKeyPressControls: onKeyPressControls
+                )
+            }
+        }
+
+        pendingEscapeFlush = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05, execute: workItem)
+    }
+
+    private func handle(
+        _ event: KeyEvent,
+        onKeyEventControls: [OnKeyEventControl],
+        onKeyPressControls: [OnKeyPressControl]
+    ) {
+        if onKeyEventControls.contains(where: { $0.action(event) }) {
+            return
+        }
+
+        switch event {
+        case .character(let char):
+            if char == ASCII.EOT {
                 stop()
-            } else {
-                window.firstResponder?.handleEvent(char)
-                
-                // handle input for `onKeyPress` View modifier
-                let onKeyPressControls =  window.controls.flattenAndKeepOnlyOnKeyPressControl()
-                for control in onKeyPressControls {
-                    if control.keyPress == char {
-                        control.action()
-                    }
+                return
+            }
+
+            window.firstResponder?.handleEvent(char)
+
+            // handle input for `onKeyPress` View modifier
+            for control in onKeyPressControls where control.keyPress == char {
+                control.action()
+            }
+
+        case .special(let special):
+            switch special {
+            case .down:
+                if let next = window.firstResponder?.selectableElement(below: 0) {
+                    window.firstResponder?.resignFirstResponder()
+                    window.firstResponder = next
+                    window.firstResponder?.becomeFirstResponder()
                 }
+
+            case .up:
+                if let next = window.firstResponder?.selectableElement(above: 0) {
+                    window.firstResponder?.resignFirstResponder()
+                    window.firstResponder = next
+                    window.firstResponder?.becomeFirstResponder()
+                }
+
+            case .right:
+                if let next = window.firstResponder?.selectableElement(rightOf: 0) {
+                    window.firstResponder?.resignFirstResponder()
+                    window.firstResponder = next
+                    window.firstResponder?.becomeFirstResponder()
+                }
+
+            case .left:
+                if let next = window.firstResponder?.selectableElement(leftOf: 0) {
+                    window.firstResponder?.resignFirstResponder()
+                    window.firstResponder = next
+                    window.firstResponder?.becomeFirstResponder()
+                }
+
+            case .shiftUp, .shiftDown, .shiftLeft, .shiftRight, .shiftTab, .delete, .escape:
+                break
             }
         }
     }

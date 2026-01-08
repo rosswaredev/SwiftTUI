@@ -159,4 +159,17 @@ extension Array where Element == Control {
             return current + child.children.flattenAndKeepOnlyOnKeyPressControl()
         }
     }
+
+    /// Filter out all ``Control``s except ``OnKeyEventControl`` and recursively flatten into one array.
+    func flattenAndKeepOnlyOnKeyEventControl() -> [OnKeyEventControl] {
+        return self.flatMap { child in
+            let current: [OnKeyEventControl]
+            if child is OnKeyEventControl {
+                current = [child as! OnKeyEventControl]
+            } else {
+                current = []
+            }
+            return current + child.children.flattenAndKeepOnlyOnKeyEventControl()
+        }
+    }
 }
